@@ -1,15 +1,14 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { CATEGORIES, REGIONS } from './config.js';
-
+import { REGIONS } from './config.js';
 export function buildCommand() {
-  return new SlashCommandBuilder().setName('pp').setDescription('Gérer les parties personnalisées Fortnite').setDMPermission(false)
-    .addSubcommand((s) => s.setName('creer').setDescription('Créer le panneau d’une PP')
-      .addStringOption((o) => o.setName('categorie').setDescription('Catégorie').setRequired(true).addChoices(...Object.entries(CATEGORIES).map(([value, item]) => ({ name: item.label, value }))))
-      .addStringOption((o) => o.setName('mode').setDescription('Choisis d’abord la catégorie, puis le mode compatible').setRequired(true).setAutocomplete(true))
-      .addStringOption((o) => o.setName('region').setDescription('Région').setRequired(true).addChoices(...REGIONS.map((value) => ({ name: value, value }))))
-      .addStringOption((o) => o.setName('code').setDescription('Référence préparatoire, pas un code Epic').setMaxLength(16))
-      .addBooleanOption((o) => o.setName('privee').setDescription('Masquer le code aux participants')))
-    .addSubcommand((s) => s.setName('liste').setDescription('Lister les PP actives'))
-    .addSubcommand((s) => s.setName('voir').setDescription('Afficher une PP').addStringOption((o) => o.setName('id').setDescription('Identifiant de session').setRequired(true).setMinLength(8).setMaxLength(8)))
-    .addSubcommand((s) => s.setName('annuler').setDescription('Annuler une PP').addStringOption((o) => o.setName('id').setDescription('Identifiant de session').setRequired(true).setMinLength(8).setMaxLength(8)));
+  return new SlashCommandBuilder().setName('pp').setDescription('Demandes et gestion des parties personnalisées Fortnite').setDMPermission(false)
+    .addSubcommand(s=>s.setName('creer').setDescription('Demander une partie personnalisée Fortnite')
+      .addStringOption(o=>o.setName('mode').setDescription('Mode de jeu : Construction, Zéro construction, Solo, Duo…').setRequired(true).setAutocomplete(true))
+      .addStringOption(o=>o.setName('code').setDescription('Code Fortnite, ou vide si l’hôte le définit').setMinLength(4).setMaxLength(16))
+      .addBooleanOption(o=>o.setName('prive').setDescription('Masquer le code aux membres (oui par défaut)'))
+      .addIntegerOption(o=>o.setName('delai').setDescription('Minutes de file : 2 défaut, 3 max (5 avec un rôle autorisé)').setMinValue(1).setMaxValue(5))
+      .addStringOption(o=>o.setName('region').setDescription('Région Fortnite (Europe par défaut)').addChoices(...REGIONS.map(v=>({name:v,value:v})))))
+    .addSubcommand(s=>s.setName('liste').setDescription('Lister les PP actives'))
+    .addSubcommand(s=>s.setName('voir').setDescription('Voir une PP').addStringOption(o=>o.setName('id').setDescription('Identifiant de PP').setRequired(true).setMinLength(8).setMaxLength(8)))
+    .addSubcommand(s=>s.setName('annuler').setDescription('Annuler une PP').addStringOption(o=>o.setName('id').setDescription('Identifiant de PP').setRequired(true).setMinLength(8).setMaxLength(8)));
 }
