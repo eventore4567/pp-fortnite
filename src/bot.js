@@ -4,7 +4,7 @@ import { getConfig, MODE_OPTIONS, STATUS, TERMINAL_STATUSES } from './config.js'
 import { buildCommand } from './commands.js';
 import { createSession, DomainError, normalizeCode, normalizeId, openQueue, parseMode, togglePlayer, transitionSession, validateDelay } from './domain.js';
 import { JsonStore } from './store.js';
-import { announcementView, codeView, feedbackView, listView, rosterView, sessionView, withBanner } from './ui.js';
+import { announcementView, codeView, feedbackView, listView, panelView, rosterView, sessionView, withBanner } from './ui.js';
 
 const EPHEMERAL=MessageFlags.Ephemeral;
 const timers=new Map();
@@ -28,7 +28,7 @@ async function refreshSessionMessage(client,session,config) {
     const channel=await client.channels.fetch(session.channelId);
     if(!channel?.isTextBased()||!channel.messages)return false;
     const message=await channel.messages.fetch(session.messageId);
-    await message.edit(sessionView(session,config));
+    await message.edit(message.flags?.has(MessageFlags.IsComponentsV2)?panelView(session,config):sessionView(session,config));
     return true;
   } catch(error) {
     console.warn('[panel]',session.id,error.message);
@@ -81,7 +81,7 @@ async function command(i,store,config) {
       durationMinutes,extendedDelay:extended,requested:true
     });
     await store.set(session);
-    await i.reply(sessionView(session,config));
+    await i.reply(panelView(session,config));
     const reply=await i.fetchReply();
     session.messageId=reply.id;
     await store.set(session);
@@ -93,7 +93,7 @@ async function command(i,store,config) {
   }
   const session=getSession(i,store,i.options.getString('id',true));
   if(sub==='voir') {
-    await i.reply({...sessionView(session,config),flags:EPHEMERAL});return;
+    await i.reply({...panelView(session,config),flags:EPHEMERAL|MessageFlags.IsComponentsV2});return;
   }
   if(sub!=='annuler')throw new DomainError('BAD_ACTION','Commande inconnue.');
   if(!canCancel(i,session,config))throw new DomainError('FORBIDDEN','Seul le demandeur, l’hôte ou un administrateur peut annuler cette PP.');
@@ -113,7 +113,7 @@ async function button(i,store,config) {
   if(action!=='join')throw new DomainError('BAD_ACTION','Bouton inconnu.');
   const joined=togglePlayer(session,i.user.id,config.maxPlayers);
   await store.set(session);
-  await i.update(sessionView(session,config));
+  await i.update(i.message?.flags?.has(MessageFlags.IsComponentsV2)?panelView(session,config):sessionView(session,config));
   await refreshSessionMessage(i.client,session,config);
   await i.followUp({embeds:[feedbackView(joined?'✅ Inscription confirmée':'Départ confirmé',
     joined?`Tu es inscrit(e) à la PP ${session.id}.`:`Tu as quitté la PP ${session.id}.`,config)],flags:EPHEMERAL});
@@ -139,7 +139,7 @@ async function menu(i,store,config) {
   if(selected==='cancel') {
     if(!canCancel(i,session,config))throw new DomainError('FORBIDDEN','Annulation réservée au demandeur, à l’hôte et au staff.');
     transitionSession(session,STATUS.CANCELLED);cancelTimer(session.id);
-    await store.set(session);await i.update(sessionView(session,config));
+    await store.set(session);await i.update(i.message?.flags?.has(MessageFlags.IsComponentsV2)?panelView(session,config):sessionView(session,config));
     await refreshSessionMessage(i.client,session,config);
     await postAnnouncement(i.client,session,config,'cancel');return;
   }
@@ -170,7 +170,7 @@ async function menu(i,store,config) {
   await store.set(session);
   if(selected==='queue_open')scheduleQueue(i.client,store,config,session);
   else cancelTimer(session.id);
-  await i.update(sessionView(session,config));
+  await i.update(i.message?.flags?.has(MessageFlags.IsComponentsV2)?panelView(session,config):sessionView(session,config));
   await refreshSessionMessage(i.client,session,config);
   if(announcement)await postAnnouncement(i.client,session,config,announcement);
 }
