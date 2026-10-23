@@ -69,6 +69,7 @@ export function sessionView(session,config={}) {
       {label:'Confirmer : partie lancée',description:'L’hôte a démarré la PP dans Fortnite',value:'launch',emoji:'✅'},
       {label:'Terminer la partie',description:'Clôturer la session',value:'complete',emoji:'🏁'},
       {label:'Voir le code privé',description:'Réponse visible uniquement par toi',value:'reveal_code',emoji:'🔑'},
+      {label:'Connecter Epic Games',description:'Lier le compte Epic de Minimoys (OAuth)',value:'connect_epic',emoji:'🔗'},
       {label:'Définir / modifier le code',description:'Réservé à l’hôte Fortnite',value:'set_code',emoji:'✏️'},
       {label:'Publier une annonce',description:'Rappel dans ce salon',value:'announce',emoji:'📣'},
       {label:'Annuler cette PP',description:'Fermer la demande',value:'cancel',emoji:'❌'}
