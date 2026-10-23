@@ -10,6 +10,8 @@ export const REGIONS = Object.freeze(['Europe', 'NA-East', 'NA-West', 'NA-Centra
 export const STATUS = Object.freeze({ OPEN: 'ouverte', READY: 'prete', RUNNING: 'en_cours', COMPLETED: 'terminee', CANCELLED: 'annulee' });
 export const TERMINAL_STATUSES = new Set([STATUS.COMPLETED, STATUS.CANCELLED]);
 
+const EMOJI_KEYS = Object.freeze(['brand', 'join', 'players', 'code', 'launch', 'manage', 'open', 'ready', 'running', 'completed', 'announce', 'cancel', 'region', 'host', 'session']);
+
 function integer(name, fallback, min, max) {
   const value = Number.parseInt(process.env[name] ?? '', 10);
   return Number.isInteger(value) && value >= min && value <= max ? value : fallback;
@@ -23,5 +25,6 @@ export function getConfig() {
     accentColor: integer('PP_ACCENT_COLOR', 0x6d5dfc, 0, 0xffffff),
     maxPlayers: integer('PP_MAX_PLAYERS', 100, 2, 100),
     announceCooldownMs: integer('PP_ANNOUNCE_COOLDOWN_SECONDS', 60, 10, 3600) * 1000,
+    emojis: Object.fromEntries(EMOJI_KEYS.map((key) => [key, process.env[`PP_EMOJI_${key.toUpperCase()}`] || null])),
   };
 }

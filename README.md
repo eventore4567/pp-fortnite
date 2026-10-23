@@ -11,6 +11,8 @@ Bot autonome de gestion de parties personnalisées Fortnite. Son interface premi
 - Permissions de gestion pour l’hôte, `Gérer le serveur` et `Gérer les évènements`.
 - Stockage JSON persistant, écrit de manière atomique pour limiter les corruptions.
 - Limite de joueurs, délai anti-spam pour les annonces et mentions neutralisées.
+- Interface premium cohérente sur les panneaux, listes, participants, annonces, confirmations et erreurs.
+- Emojis personnalisés facultatifs avec retour automatique vers des emojis Unicode compatibles.
 
 ## Les quatre seules sous-commandes
 
@@ -49,6 +51,7 @@ Variables facultatives :
 - `PP_ACCENT_COLOR` : couleur décimale des embeds.
 - `PP_MAX_PLAYERS` : limite entre 2 et 100.
 - `PP_ANNOUNCE_COOLDOWN_SECONDS` : délai entre annonces, entre 10 et 3600 secondes.
+- `PP_EMOJI_*` : emojis Discord personnalisés facultatifs au format `<:nom:identifiant>` (ou `<a:nom:identifiant>`). Clés disponibles : `BRAND`, `JOIN`, `PLAYERS`, `CODE`, `LAUNCH`, `MANAGE`, `OPEN`, `READY`, `RUNNING`, `COMPLETED`, `ANNOUNCE`, `CANCEL`, `REGION`, `HOST`, `SESSION`. Une valeur absente ou invalide utilise automatiquement un emoji Unicode propre.
 
 Invitez l’application avec les scopes `bot` et `applications.commands`. Le bot a besoin de voir le salon, envoyer des messages, intégrer des liens et utiliser des commandes d’application.
 

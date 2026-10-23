@@ -2,9 +2,9 @@ import 'dotenv/config';
 import { Client, GatewayIntentBits, MessageFlags, PermissionFlagsBits, REST, Routes } from 'discord.js';
 import { getConfig, STATUS, TERMINAL_STATUSES } from './config.js';
 import { buildCommand } from './commands.js';
-import { createSession, DomainError, normalizeId, togglePlayer, transitionSession, visibleCode } from './domain.js';
+import { createSession, DomainError, normalizeId, togglePlayer, transitionSession } from './domain.js';
 import { JsonStore } from './store.js';
-import { listView, sessionView } from './ui.js';
+import { announcementView, codeView, feedbackView, launchHelpView, listView, rosterView, sessionView } from './ui.js';
 
 const EPHEMERAL = MessageFlags.Ephemeral;
 const safeReply = (i, payload) => i.replied || i.deferred ? i.followUp(payload) : i.reply(payload);
@@ -14,6 +14,20 @@ function getSession(i, store, rawId) {
   const session = store.get(normalizeId(rawId));
   if (!session || session.guildId !== i.guildId) throw new DomainError('NOT_FOUND', 'Session introuvable dans ce serveur.');
   return session;
+}
+
+async function refreshSessionMessage(client, session, config) {
+  if (!session.channelId || !session.messageId) return false;
+  try {
+    const channel = await client.channels.fetch(session.channelId);
+    if (!channel?.isTextBased() || !channel.messages) return false;
+    const message = await channel.messages.fetch(session.messageId);
+    await message.edit(sessionView(session, config));
+    return true;
+  } catch (error) {
+    console.warn(`[panel] Impossible d’actualiser ${session.id}:`, error.message);
+    return false;
+  }
 }
 
 async function handleCommand(i, store, config) {
@@ -28,31 +42,32 @@ async function handleCommand(i, store, config) {
   }
   if (sub === 'liste') {
     const sessions = store.values().filter((s) => s.guildId === i.guildId && !TERMINAL_STATUSES.has(s.status)).sort((a, b) => b.updatedAt - a.updatedAt);
-    await i.reply({ embeds: [listView(sessions)], flags: EPHEMERAL }); return;
+    await i.reply({ embeds: [listView(sessions, config)], flags: EPHEMERAL }); return;
   }
   const session = getSession(i, store, i.options.getString('id', true));
   if (sub === 'voir') { await i.reply({ ...sessionView(session, config), flags: EPHEMERAL }); return; }
   if (!canManage(i, session)) throw new DomainError('FORBIDDEN', 'Seul l’hôte ou un membre autorisé peut annuler cette session.');
-  transitionSession(session, STATUS.CANCELLED); await store.set(session); await i.reply(sessionView(session, config));
+  transitionSession(session, STATUS.CANCELLED); await store.set(session);
+  await refreshSessionMessage(i.client, session, config);
+  await i.reply({ embeds: [feedbackView('Session annulée', `La session \`${session.id}\` est désormais fermée.`, config, 'danger')], flags: EPHEMERAL });
 }
 
 async function handleButton(i, store, config) {
   requireGuild(i); const [, action, rawId] = i.customId.split(':'); const session = getSession(i, store, rawId);
   if (action === 'roster') {
-    const roster = session.players.length ? session.players.map((id, n) => `${n + 1}. <@${id}>`).join('\n') : 'Aucun joueur inscrit.';
-    await i.reply({ content: `**Participants • ${session.id}**\n${roster}`, flags: EPHEMERAL, allowedMentions: { parse: [] } }); return;
+    await i.reply({ embeds: [rosterView(session, config)], flags: EPHEMERAL, allowedMentions: { parse: [] } }); return;
   }
   if (action === 'code') {
-    const code = visibleCode(session, canManage(i, session));
-    await i.reply({ content: code ? `Référence préparatoire : \`${code}\`\nÀ configurer manuellement par un créateur autorisé dans Fortnite.` : 'Ce code est privé. Demande-le à l’hôte.', flags: EPHEMERAL }); return;
+    await i.reply({ embeds: [codeView(session, canManage(i, session), config)], flags: EPHEMERAL }); return;
   }
   if (action === 'launch') {
     if (!canManage(i, session)) throw new DomainError('FORBIDDEN', 'Cette action est réservée à l’hôte ou aux gestionnaires.');
-    await i.reply({ content: '⚠️ **Aucune connexion Epic n’est active.** Configure et lance la partie manuellement dans Fortnite avec un compte créateur autorisé, puis marque la session « en cours » via le menu. Ce bouton ne crée aucun code Epic et ne lance aucune partie.', flags: EPHEMERAL }); return;
+    await i.reply({ embeds: [launchHelpView(session, config)], flags: EPHEMERAL }); return;
   }
   if (action !== 'join') throw new DomainError('BAD_ACTION', 'Action inconnue.');
   const joined = togglePlayer(session, i.user.id, config.maxPlayers); await store.set(session);
-  await i.update(sessionView(session, config)); await i.followUp({ content: joined ? '✅ Inscription confirmée.' : '↩️ Tu as quitté la session.', flags: EPHEMERAL });
+  await i.update(sessionView(session, config));
+  await i.followUp({ embeds: [feedbackView(joined ? 'Inscription confirmée' : 'Départ enregistré', joined ? `Tu participes maintenant à la session \`${session.id}\`.` : `Tu as quitté la session \`${session.id}\`.`, config, joined ? 'success' : 'info')], flags: EPHEMERAL });
 }
 
 async function handleMenu(i, store, config) {
@@ -65,7 +80,7 @@ async function handleMenu(i, store, config) {
     const now = Date.now(); const remaining = config.announceCooldownMs - (now - (session.lastAnnouncementAt || 0));
     if (remaining > 0) throw new DomainError('COOLDOWN', `Attends encore ${Math.ceil(remaining / 1000)} seconde(s) avant une nouvelle annonce.`);
     session.lastAnnouncementAt = now; session.updatedAt = now; await store.set(session);
-    await i.reply({ content: `📣 **PP ${session.id}** • ${session.mode} • ${session.region}\nUne session est disponible. Utilisez son panneau officiel pour vous inscrire.`, allowedMentions: { parse: [] } }); return;
+    await i.reply({ embeds: [announcementView(session, config)], allowedMentions: { parse: [] } }); return;
   }
   transitionSession(session, selected); await store.set(session); await i.update(sessionView(session, config));
 }
@@ -86,7 +101,7 @@ export async function startBot() {
       else if (i.isStringSelectMenu() && i.customId.startsWith('pp:')) await handleMenu(i, store, config);
     } catch (error) {
       const expected = error instanceof DomainError; if (!expected) console.error('[interaction]', error);
-      if (i.isRepliable()) await safeReply(i, { content: expected ? `⚠️ ${error.message}` : '❌ Une erreur interne est survenue. Réessaie dans un instant.', flags: EPHEMERAL }).catch(() => {});
+      if (i.isRepliable()) await safeReply(i, { embeds: [feedbackView(expected ? 'Action impossible' : 'Erreur interne', expected ? error.message : 'Réessaie dans un instant. Si le problème persiste, contacte un administrateur.', config, 'danger')], flags: EPHEMERAL }).catch(() => {});
     }
   });
   client.once('ready', () => console.log(`[ready] ${client.user.tag} • commandes ${config.guildId ? 'serveur' : 'globales'} • ${store.values().length} session(s)`));
