@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, MessageFlags, PermissionFlagsBits, REST, Routes } from 'discord.js';
+import { Client, Events, GatewayIntentBits, MessageFlags, PermissionFlagsBits, REST, Routes } from 'discord.js';
 import { getConfig, STATUS, TERMINAL_STATUSES } from './config.js';
 import { buildCommand } from './commands.js';
 import { createSession, DomainError, normalizeId, togglePlayer, transitionSession } from './domain.js';
@@ -104,6 +104,6 @@ export async function startBot() {
       if (i.isRepliable()) await safeReply(i, { embeds: [feedbackView(expected ? 'Action impossible' : 'Erreur interne', expected ? error.message : 'Réessaie dans un instant. Si le problème persiste, contacte un administrateur.', config, 'danger')], flags: EPHEMERAL }).catch(() => {});
     }
   });
-  client.once('ready', () => console.log(`[ready] ${client.user.tag} • commandes ${config.guildId ? 'serveur' : 'globales'} • ${store.values().length} session(s)`));
+  client.once(Events.ClientReady, () => console.log(`[ready] ${client.user.tag} • commandes ${config.guildId ? 'serveur' : 'globales'} • ${store.values().length} session(s)`));
   client.on('error', (error) => console.error('[discord]', error)); await client.login(config.token); return { client, store };
 }
