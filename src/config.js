@@ -20,6 +20,7 @@ export function getConfig() {
   return {
     token: process.env.DISCORD_TOKEN, clientId: process.env.DISCORD_CLIENT_ID,
     guildId: process.env.DISCORD_GUILD_ID || null,
+    creatorDiscordId: /^\d{17,20}$/.test(process.env.PP_CREATOR_DISCORD_ID || '') ? process.env.PP_CREATOR_DISCORD_ID : null,
     dataFile: path.resolve(process.env.DATA_FILE || './data/sessions.json'),
     bannerUrl: process.env.PP_BANNER_URL || null,
     accentColor: integer('PP_ACCENT_COLOR', 0x6d5dfc, 0, 0xffffff),
