@@ -46,10 +46,22 @@ test('nouveau panneau V2 place la bannière avant le contenu et les contrôles',
   const { panelView }=await import('../src/ui.js');
   const { MessageFlags }=await import('discord.js');
   const session=createSession({id:'ABCDEF12',guildId:'g',ownerId:'123456789012345678',hostId:'1563237640655085670',channelId:'c',category:'br_zero',mode:'Duo',region:'Europe',requested:true});
-  const payload=panelView(session,{maxPlayers:100,emojis:{}});
+  const payload=panelView(session,{maxPlayers:100,emojis:{},creatorDiscordId:'1563237640655085670'});
   assert.equal(payload.flags,MessageFlags.IsComponentsV2);
   const data=payload.components[0].toJSON();
   assert.equal(data.components[0].type,12);
   assert.equal(data.components[0].items[0].media.url,'attachment://pp-banner.png');
-  assert.match(JSON.stringify(data),/1563237640655085670/);
+  assert.match(JSON.stringify(data),/Minimoys/);
+});
+
+test('bannière haute, pas de couleur latérale et annonces V2', async () => {
+  const { panelView, announcementPanelView }=await import('../src/ui.js');
+  const s=createSession({id:'ABCDEF12',guildId:'g',ownerId:'123456789012345678',channelId:'c',category:'og',mode:'Duo',region:'Europe',requested:true});
+  const config={creatorDiscordId:'1563237640655085670',maxPlayers:100};
+  const panel=panelView(s,config).components[0].toJSON();
+  assert.equal(panel.accent_color,undefined);
+  assert.equal(panel.components[0].type,12);
+  const announce=announcementPanelView(s,config,'launch');
+  assert.equal(announce.components[0].toJSON().components[0].type,12);
+  assert.match(JSON.stringify(announce.components[0].toJSON()),/Partie lancée/);
 });
