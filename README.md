@@ -57,7 +57,7 @@ Invitez l’application avec les scopes `bot` et `applications.commands`. Le bot
 
 ## Déploiement Railway
 
-Le fichier `railway.json` configure la construction, `npm start` et le redémarrage sur échec.
+Le fichier `railway.json` utilise le `Dockerfile` vérifié du dépôt, configure `npm start` et le redémarrage sur échec. Cette construction explicite évite de dépendre de la détection automatique du builder Railway.
 
 1. Créez un service Railway depuis ce dépôt.
 2. Ajoutez `DISCORD_TOKEN` et `DISCORD_CLIENT_ID` dans les variables du service. Pour tester les commandes sans délai, ajoutez temporairement `DISCORD_GUILD_ID`.
