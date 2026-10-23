@@ -41,3 +41,15 @@ test('la demande et le lancement annoncent distinctement les états', () => {
   assert.equal(payload.files.length,1);
   assert.match(announcementView(session,config,'launch').toJSON().title,/Partie lancée/);
 });
+
+test('nouveau panneau V2 place la bannière avant le contenu et les contrôles', async () => {
+  const { panelView }=await import('../src/ui.js');
+  const { MessageFlags }=await import('discord.js');
+  const session=createSession({id:'ABCDEF12',guildId:'g',ownerId:'123456789012345678',hostId:'1563237640655085670',channelId:'c',category:'br_zero',mode:'Duo',region:'Europe',requested:true});
+  const payload=panelView(session,{maxPlayers:100,emojis:{}});
+  assert.equal(payload.flags,MessageFlags.IsComponentsV2);
+  const data=payload.components[0].toJSON();
+  assert.equal(data.components[0].type,12);
+  assert.equal(data.components[0].items[0].media.url,'attachment://pp-banner.png');
+  assert.match(JSON.stringify(data),/1563237640655085670/);
+});
