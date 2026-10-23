@@ -116,37 +116,73 @@ export function feedbackView(title,description,config={},tone='success') {
   return embed(config,tone==='danger'?COLOR.error:tone==='success'?COLOR.open:COLOR.base).setTitle(title).setDescription(description);
 }
 
-// Nouveau panneau Components V2 : bannière véritablement au-dessus du texte
-// et boutons regroupés dans le même conteneur, comme les panneaux SentriX.
-export function panelView(session,config={}) {
-  const category=CATEGORIES[session.category]||{label:session.category,emoji:'🎮'};
-  const state=STATES[session.status]||STATES[STATUS.REQUESTED];
-  const host=session.hostId||session.ownerId;
-  const previous=sessionView(session,config);
-  const code=!session.code?'⏳ En attente de l’hôte':
-    session.privateCode?'🔒 Privé · demander à l’hôte':`${session.code}`;
-  const end=session.status===STATUS.OPEN&&session.queueEndsAt
-    ? `<t:${Math.floor(session.queueEndsAt/1000)}:R>`
-    : session.status===STATUS.REQUESTED
-      ? `${session.durationMinutes||2} min après ouverture`
-      : 'Fermée';
-  const container=new ContainerBuilder()
-    .setAccentColor(state.color)
-    .addMediaGalleryComponents(new MediaGalleryBuilder()
-      .addItems(new MediaGalleryItemBuilder().setURL(config.bannerUrl||'attachment://pp-banner.png')
-        .setDescription('Bannière PP Fortnite fine')))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      `### ${state.emoji}  ${state.label}\n-# ${state.desc}\n\n**${category.emoji}  ${category.label} · ${session.mode}**`
-    ))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      `**Demandée par** <@${session.ownerId}>\n**👑 Hôte Fortnite :** <@${host}>\n**🌍 Région :** ${session.region||'Europe'}  ·  **👥 Inscrits :** ${session.players?.length||0}/${config.maxPlayers||100}\n**⏱️ File :** ${end}  ·  **🔑 Code :** ${code}\n-# Partie ${session.id} · lancement confirmé manuellement par l’hôte`
-    ))
-    .addActionRowComponents(...previous.components);
+// Panneaux Discord Components V2 : bannière en premier, sans barre colorée latérale.
+// La bande fine est une vraie galerie, pas une image placée sous un embed.
+function bannerGallery(config) {
+  return new MediaGalleryBuilder().addItems(
+    new MediaGalleryItemBuilder().setURL(config.bannerUrl||'attachment://pp-banner.png')
+  );
+}
+function panelPayload(container,config) {
   const payload={
-    components:[container],flags:MessageFlags.IsComponentsV2,
+    flags:MessageFlags.IsComponentsV2,components:[container],
     allowedMentions:{parse:[]},attachments:[]
   };
   if(!config.bannerUrl)payload.files=[new AttachmentBuilder(BANNER_PNG,{name:'pp-banner.png'})];
   return payload;
+}
+function requesterName(session) {
+  return session.requesterName?'@'+session.requesterName:'Demandeur';
+}
+function hostName(session,config) {
+  if(session.hostName)return '@'+session.hostName;
+  if(config.creatorDiscordId&&(session.hostId||session.ownerId)===config.creatorDiscordId)return '@Minimoys';
+  return 'Hôte';
+}
+function queueEndLabel(session) {
+  if(session.status===STATUS.OPEN&&session.queueEndsAt)
+    return `<t:${Math.floor(session.queueEndsAt/1000)}:R>`;
+  if(session.status===STATUS.REQUESTED)return `${session.durationMinutes||2} min à l’ouverture`;
+  return session.status===STATUS.OPEN?'File ouverte':'File fermée';
+}
+export function panelView(session,config={}) {
+  const category=CATEGORIES[session.category]||{label:session.category,emoji:'🎮'};
+  const state=STATES[session.status]||STATES[STATUS.REQUESTED];
+  const controls=sessionView(session,config).components;
+  const code=!session.code?'À définir par l’hôte':
+    session.privateCode?'🔒 Privé':`\`${session.code}\``;
+  const container=new ContainerBuilder()
+    .addMediaGalleryComponents(bannerGallery(config))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `**${state.emoji}  ${state.label}**  ·  ${category.emoji} ${category.label} · ${session.mode}\n-# ${state.desc}  •  Demandée par ${requesterName(session)}`
+    ))
+    .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `**👑 Hôte Fortnite**  ${hostName(session,config)}\n**🌐 Région**  ${session.region||'Europe'}   ·   **⏱️ File**  ${queueEndLabel(session)}\n**🔑 Code**  ${code}   ·   **👥 Inscrits**  ${session.players?.length||0}/${config.maxPlayers||100}\n-# Partie ${session.id} · Lancement validé par l’hôte depuis Discord`
+    ))
+    .addActionRowComponents(...controls);
+  return panelPayload(container,config);
+}
+export function announcementPanelView(session,config={},kind='reminder') {
+  const embedData=announcementView(session,config,kind).toJSON();
+  const category=CATEGORIES[session.category]||{label:session.category,emoji:'🎮'};
+  const title=embedData.title||'📣  PP Fortnite';
+  const msg={
+    queue:'Rejoins la file avant la fin du délai.',
+    closed:'La file est fermée. L’hôte prépare le lancement.',
+    launch:'Bon jeu à tous ! 🎉',
+    complete:'Merci pour votre participation.',
+    cancel:'La demande est clôturée.',
+    reminder:'Une partie personnalisée est disponible.'
+  }[kind]||'Une partie personnalisée est disponible.';
+  const container=new ContainerBuilder()
+    .addMediaGalleryComponents(bannerGallery(config))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `### ${title}\n${msg}\n\n**🎯 ${category.label} · ${session.mode}**`
+    ))
+    .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `**👑 Hôte**  ${hostName(session,config)}   ·   **⏱️ Délai**  ${session.durationMinutes||2} min\n-# Demandée par ${requesterName(session)} · Partie ${session.id}`
+    ));
+  return panelPayload(container,config);
 }
