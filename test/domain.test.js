@@ -12,7 +12,8 @@ test('la commande expose exactement les quatre sous-commandes prévues', () => {
   assert.equal(json.dm_permission, false);
 });
 test('la matrice catégorie/mode refuse une combinaison invalide', () => {
-  assert.throws(() => make({ category: 'reload', mode: 'Solo' }), (error) => error instanceof DomainError && error.code === 'BAD_MODE');
+  assert.throws(() => make({ category: 'og', mode: 'Trio' }), (error) => error instanceof DomainError && error.code === 'BAD_MODE');
+  assert.equal(make({ category: 'reload', mode: 'Solo' }).mode, 'Solo');
 });
 test('les codes sont normalisés et strictement validés', () => {
   assert.equal(normalizeCode(' abc-12 '), 'ABC-12');
@@ -36,9 +37,29 @@ test('les inscriptions fermées refusent les changements', () => {
 test('une session terminale doit être réouverte explicitement', () => {
   const session = make(); transitionSession(session, STATUS.CANCELLED);
   assert.throws(() => transitionSession(session, STATUS.RUNNING), (error) => error.code === 'TERMINAL');
-  transitionSession(session, STATUS.OPEN); assert.equal(session.status, STATUS.OPEN);
+  assert.throws(() => transitionSession(session, STATUS.OPEN), (error) => error.code === 'TERMINAL');
 });
 test('un code privé reste invisible aux non-gestionnaires', () => {
   const session = make({ privateCode: true });
   assert.equal(visibleCode(session, false), null); assert.equal(visibleCode(session, true), 'MATCH_42');
+});
+
+test('une demande est séparée de l’hôte Fortnite et utilise 2 minutes par défaut', () => {
+  const s=make({ requested:true, hostId:'creator123' });
+  assert.equal(s.status,STATUS.REQUESTED);
+  assert.equal(s.ownerId,'o');
+  assert.equal(s.hostId,'creator123');
+  assert.equal(s.durationMinutes,2);
+});
+test('les délais sont limités à 3 minutes hors rôle spécial', async () => {
+  const { validateDelay, openQueue, parseMode }=await import('../src/domain.js');
+  assert.equal(validateDelay(null,false),2);
+  assert.throws(()=>validateDelay(5,false),/1 à 3/);
+  assert.equal(validateDelay(5,true),5);
+  const mode=parseMode('reload:Solo');
+  assert.deepEqual(mode,{category:'reload',mode:'Solo'});
+  const s=make({requested:true,durationMinutes:2});
+  openQueue(s,1000);
+  assert.equal(s.queueEndsAt,121000);
+  assert.equal(s.status,STATUS.OPEN);
 });
