@@ -1,10 +1,10 @@
 import 'dotenv/config';
-import { ActionRowBuilder, Client, Events, GatewayIntentBits, MessageFlags, ModalBuilder, PermissionFlagsBits, REST, Routes, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, Client, Events, GatewayIntentBits, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, REST, Routes, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { getConfig, MODE_OPTIONS, STATUS, TERMINAL_STATUSES } from './config.js';
 import { buildCommand } from './commands.js';
 import { createSession, DomainError, normalizeCode, normalizeId, openQueue, parseMode, togglePlayer, transitionSession, validateDelay } from './domain.js';
 import { JsonStore } from './store.js';
-import { announcementView, codeView, feedbackView, listView, panelView, rosterView, sessionView, withBanner } from './ui.js';
+import { announcementPanelView, announcementView, codeView, feedbackView, listView, panelView, rosterView, sessionView, withBanner } from './ui.js';
 
 const EPHEMERAL=MessageFlags.Ephemeral;
 const timers=new Map();
@@ -28,7 +28,7 @@ async function refreshSessionMessage(client,session,config) {
     const channel=await client.channels.fetch(session.channelId);
     if(!channel?.isTextBased()||!channel.messages)return false;
     const message=await channel.messages.fetch(session.messageId);
-    await message.edit(message.flags?.has(MessageFlags.IsComponentsV2)?panelView(session,config):sessionView(session,config));
+    await message.edit({...panelView(session,config),content:null,embeds:[]});
     return true;
   } catch(error) {
     console.warn('[panel]',session.id,error.message);
@@ -39,7 +39,7 @@ async function postAnnouncement(client,session,config,kind) {
   try {
     const channel=await client.channels.fetch(session.channelId);
     if(!channel?.isTextBased())return false;
-    await channel.send(withBanner(announcementView(session,config,kind),config));
+    await channel.send(announcementPanelView(session,config,kind));
     return true;
   } catch(error) {
     console.warn('[announcement]',session.id,error.message);
@@ -80,6 +80,8 @@ async function command(i,store,config) {
       code:i.options.getString('code'),privateCode:i.options.getBoolean('prive')??true,
       durationMinutes,extendedDelay:extended,requested:true
     });
+    session.requesterName=escapeMarkdown(String(i.member?.displayName||i.user.globalName||i.user.username).slice(0,48));
+    session.hostName=config.creatorDiscordId?'Minimoys':session.requesterName;
     await store.set(session);
     await i.reply(panelView(session,config));
     const reply=await i.fetchReply();
@@ -214,8 +216,11 @@ export async function startBot() {
       if(i.isRepliable()) await safeReply(i,{embeds:[feedbackView(expected?'Action impossible':'Erreur interne',expected?error.message:'Réessaie plus tard.',config,'danger')],flags:EPHEMERAL}).catch(()=>{});
     }
   });
-  client.once(Events.ClientReady,()=>{
-    for(const session of store.values())scheduleQueue(client,store,config,session);
+  client.once(Events.ClientReady,async()=>{
+    for(const session of store.values()) {
+      scheduleQueue(client,store,config,session);
+      if(session.messageId && !TERMINAL_STATUSES.has(session.status)) await refreshSessionMessage(client,session,config);
+    }
     console.log(`[ready] ${client.user.tag} · ${store.values().length} PP · hôte configuré : ${config.creatorDiscordId?'oui':'non'}`);
   });
   client.on('error',e=>console.error('[discord]',e));
