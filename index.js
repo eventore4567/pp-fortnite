@@ -35,7 +35,13 @@ const render=s=>{
  new ButtonBuilder().setCustomId('ready:'+s.id).setLabel('Préparer').setEmoji('⏳').setStyle(ButtonStyle.Secondary).setDisabled(disabled),
  new ButtonBuilder().setCustomId('launch:'+s.id).setLabel('Lancer (manuel)').setEmoji('▶️').setStyle(ButtonStyle.Success).setDisabled(disabled),
  new ButtonBuilder().setCustomId('cancel:'+s.id).setLabel('Annuler').setEmoji('✖️').setStyle(ButtonStyle.Danger).setDisabled(disabled));
- return {embeds:[e],components:[row]};
+ const menu=new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('manage:'+s.id).setPlaceholder('⚙️ Gérer cette PP').addOptions(
+ {label:'Afficher les participants',value:'players',emoji:'👥',description:'Voir les joueurs inscrits'},
+ {label:'Voir le code',value:'code',emoji:'🔑',description:'Réservé à l’hôte si privé'},
+ {label:'Publier une annonce',value:'announce',emoji:'📢',description:'Rappeler la session dans ce salon'},
+ {label:'Remettre les inscriptions',value:'reopen',emoji:'🔄',description:'Réouvrir la session'}
+ ).setDisabled(disabled));
+ return {embeds:[e],components:[row,menu]};
 };
 client.on('interactionCreate',async i=>{
  try {
@@ -60,6 +66,19 @@ client.on('interactionCreate',async i=>{
   if(sub==='voir')return i.reply(render(s));
   if(!canManage(i,s))return i.reply({content:'Seul l’hôte ou un gestionnaire peut annuler.',flags:MessageFlags.Ephemeral});
   s.status='annulee';await save();return i.reply(render(s));
+ }
+ if(i.isStringSelectMenu()&&i.customId.startsWith('manage:')){
+  const id=i.customId.slice(7),s=db.sessions[id];
+  if(!s||s.guild!==i.guildId)return i.reply({content:'Session introuvable.',flags:MessageFlags.Ephemeral});
+  const action=i.values[0];
+  if(action==='players')return i.reply({content:s.players.length?s.players.map((p,n)=>(n+1)+'. <@'+p+'>').join('\\n'):'Aucun joueur inscrit.',flags:MessageFlags.Ephemeral});
+  if(action==='code'){
+   if(s.private&&!canManage(i,s))return i.reply({content:'Code privé : demande-le à l’hôte.',flags:MessageFlags.Ephemeral});
+   return i.reply({content:'Code préparatoire : \`'+s.code+'\` (à configurer manuellement dans Fortnite).',flags:MessageFlags.Ephemeral});
+  }
+  if(!canManage(i,s))return i.reply({content:'Action réservée à l’hôte.',flags:MessageFlags.Ephemeral});
+  if(action==='announce')return i.reply({content:'📢 **PP '+labels[s.category]+' • '+s.mode+'** — Région '+s.region+' • Session \`'+s.id+'\`. Utilisez le panneau de la session pour vous inscrire.',allowedMentions:{parse:[]}});
+  if(action==='reopen'){s.status='ouverte';await save();return i.update(render(s));}
  }
  if(i.isButton()){
   const [action,id]=i.customId.split(':'),s=db.sessions[id];
