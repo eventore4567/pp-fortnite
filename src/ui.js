@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { CATEGORIES, STATUS, TERMINAL_STATUSES } from './config.js';
 
-const COLORS = Object.freeze({ neutral: 0x121826, success: 0x2ecc71, warning: 0xf0a43c, info: 0x5b8cff, danger: 0xed4245 });
+const COLORS = Object.freeze({ neutral: 0x252334, success: 0x7365db, warning: 0xb48ad9, info: 0x6557c9, danger: 0xd65b77 });
 const CUSTOM_EMOJI = /^<a?:[A-Za-z0-9_]{2,32}:\d{17,20}>$/;
 const STATUS_VIEW = {
   [STATUS.OPEN]: { key: 'open', fallback: '🟢', label: 'OUVERTE', detail: 'Inscriptions ouvertes', color: COLORS.success },
@@ -20,7 +20,7 @@ function baseEmbed(config, color = config?.accentColor ?? COLORS.info) {
   return new EmbedBuilder()
     .setColor(color)
     .setAuthor({ name: `${icon(config, 'brand', '✦')}  PP FORTNITE`, iconURL: config?.brandIconUrl || undefined })
-    .setFooter({ text: 'PP FORTNITE  •  MATCH CENTER  •  Discord' });
+    .setFooter({ text: 'PP Fortnite  ·  Match Center' });
 }
 
 function componentEmoji(config, key, fallback) {
@@ -33,8 +33,8 @@ export function sessionView(session, config) {
   const terminal = TERMINAL_STATUSES.has(session.status);
   const statusIcon = icon(config, status.key, status.fallback);
   const embed = baseEmbed(config, status.color)
-    .setTitle(`${category.emoji}  ${category.label.toUpperCase()}  /  ${session.mode.toUpperCase()}`)
-    .setDescription(`## ${statusIcon}  ${status.label}\n**${status.detail}**\n\n━━━━━━━━━━━━━━━━━━━━\n🎮  **MATCH CENTER**  ·  Informations de la partie\n━━━━━━━━━━━━━━━━━━━━`)
+    .setTitle(`${category.emoji}  ${category.label}  ·  ${session.mode}`)
+    .setDescription(`${statusIcon} **${status.label}**  ·  ${status.detail}\n\n**PARTIE PERSONNALISÉE**`)
     .addFields(
       { name: `${icon(config, 'region', '🌐')}  RÉGION`, value: `**${session.region}**`, inline: true },
       { name: `${icon(config, 'host', '♛')}  HÔTE`, value: `<@${session.ownerId}>`, inline: true },
@@ -43,11 +43,12 @@ export function sessionView(session, config) {
       { name: `${icon(config, 'session', '⌁')}  SESSION`, value: `\`${session.id}\``, inline: true },
       { name: 'MISE À JOUR', value: `<t:${Math.floor(session.updatedAt / 1000)}:R>`, inline: true })
     .setTimestamp(session.updatedAt);
-  if (config.bannerUrl) embed.setImage(config.bannerUrl);
+  // Utiliser une image horizontale très fine (par exemple 1200 × 100) dans PP_BANNER_URL.
+  if (config.bannerUrl && /^https:\/\//i.test(config.bannerUrl)) embed.setImage(config.bannerUrl);
   const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`pp:join:${session.id}`).setLabel('Rejoindre / quitter').setEmoji(componentEmoji(config, 'join', '🎮')).setStyle(ButtonStyle.Primary).setDisabled(terminal || session.status !== STATUS.OPEN),
+    new ButtonBuilder().setCustomId(`pp:join:${session.id}`).setLabel('Participer / quitter').setEmoji(componentEmoji(config, 'join', '🎮')).setStyle(ButtonStyle.Primary).setDisabled(terminal || session.status !== STATUS.OPEN),
     new ButtonBuilder().setCustomId(`pp:roster:${session.id}`).setLabel('Participants').setEmoji(componentEmoji(config, 'players', '👥')).setStyle(ButtonStyle.Secondary));
-  const menu = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`pp:manage:${session.id}`).setPlaceholder('Gérer la session').setMinValues(1).setMaxValues(1).addOptions(
+  const menu = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`pp:manage:${session.id}`).setPlaceholder('⚙️  Gestion de la PP').setMinValues(1).setMaxValues(1).addOptions(
     { label: 'Ouvrir les inscriptions', description: 'Autoriser les joueurs à rejoindre', value: STATUS.OPEN, emoji: componentEmoji(config, 'open', '🟢') },
     { label: 'Fermer les inscriptions', description: 'Verrouiller la liste des participants', value: STATUS.READY, emoji: componentEmoji(config, 'ready', '🟠') },
     { label: 'Marquer en cours', description: 'Indiquer un lancement manuel', value: STATUS.RUNNING, emoji: componentEmoji(config, 'running', '🔵') },
