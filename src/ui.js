@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, EmbedBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, MessageFlags, SeparatorBuilder, StringSelectMenuBuilder, TextDisplayBuilder } from 'discord.js';
 import { BANNER_PNG } from './banner.js';
 import { CATEGORIES, STATUS, TERMINAL_STATUSES } from './config.js';
 
@@ -114,4 +114,39 @@ export function launchHelpView(session,config={}) {
 }
 export function feedbackView(title,description,config={},tone='success') {
   return embed(config,tone==='danger'?COLOR.error:tone==='success'?COLOR.open:COLOR.base).setTitle(title).setDescription(description);
+}
+
+// Nouveau panneau Components V2 : bannière véritablement au-dessus du texte
+// et boutons regroupés dans le même conteneur, comme les panneaux SentriX.
+export function panelView(session,config={}) {
+  const category=CATEGORIES[session.category]||{label:session.category,emoji:'🎮'};
+  const state=STATES[session.status]||STATES[STATUS.REQUESTED];
+  const host=session.hostId||session.ownerId;
+  const previous=sessionView(session,config);
+  const code=!session.code?'⏳ En attente de l’hôte':
+    session.privateCode?'🔒 Privé · demander à l’hôte':`${session.code}`;
+  const end=session.status===STATUS.OPEN&&session.queueEndsAt
+    ? `<t:${Math.floor(session.queueEndsAt/1000)}:R>`
+    : session.status===STATUS.REQUESTED
+      ? `${session.durationMinutes||2} min après ouverture`
+      : 'Fermée';
+  const container=new ContainerBuilder()
+    .setAccentColor(state.color)
+    .addMediaGalleryComponents(new MediaGalleryBuilder()
+      .addItems(new MediaGalleryItemBuilder().setURL(config.bannerUrl||'attachment://pp-banner.png')
+        .setDescription('Bannière PP Fortnite fine')))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `### ${state.emoji}  ${state.label}\n-# ${state.desc}\n\n**${category.emoji}  ${category.label} · ${session.mode}**`
+    ))
+    .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `**Demandée par** <@${session.ownerId}>\n**👑 Hôte Fortnite :** <@${host}>\n**🌍 Région :** ${session.region||'Europe'}  ·  **👥 Inscrits :** ${session.players?.length||0}/${config.maxPlayers||100}\n**⏱️ File :** ${end}  ·  **🔑 Code :** ${code}\n-# Partie ${session.id} · lancement confirmé manuellement par l’hôte`
+    ))
+    .addActionRowComponents(...previous.components);
+  const payload={
+    components:[container],flags:MessageFlags.IsComponentsV2,
+    allowedMentions:{parse:[]},attachments:[]
+  };
+  if(!config.bannerUrl)payload.files=[new AttachmentBuilder(BANNER_PNG,{name:'pp-banner.png'})];
+  return payload;
 }
