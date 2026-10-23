@@ -1,102 +1,117 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { BANNER_PNG } from './banner.js';
 import { CATEGORIES, STATUS, TERMINAL_STATUSES } from './config.js';
 
-const COLORS = Object.freeze({ neutral: 0x252334, success: 0x7365db, warning: 0xb48ad9, info: 0x6557c9, danger: 0xd65b77 });
-const CUSTOM_EMOJI = /^<a?:[A-Za-z0-9_]{2,32}:\d{17,20}>$/;
-const STATUS_VIEW = {
-  [STATUS.OPEN]: { key: 'open', fallback: '🟢', label: 'OUVERTE', detail: 'Inscriptions ouvertes', color: COLORS.success },
-  [STATUS.READY]: { key: 'ready', fallback: '🟠', label: 'PRÊTE', detail: 'Inscriptions fermées', color: COLORS.warning },
-  [STATUS.RUNNING]: { key: 'running', fallback: '🔵', label: 'EN COURS', detail: 'Suivi manuel par l’hôte', color: COLORS.info },
-  [STATUS.COMPLETED]: { key: 'completed', fallback: '🏁', label: 'TERMINÉE', detail: 'Session clôturée', color: COLORS.neutral },
-  [STATUS.CANCELLED]: { key: 'cancel', fallback: '🔴', label: 'ANNULÉE', detail: 'Session annulée', color: COLORS.danger },
+const COLOR={base:0x7564cd,open:0x4cbb87,ready:0xc79a56,live:0x7162cf,done:0x667085,error:0xe05a71};
+const EMOJI_RE=/^<a?:[A-Za-z0-9_]{2,32}:\d{17,20}>$/;
+const STATES={
+  [STATUS.REQUESTED]:{label:'DEMANDE REÇUE',desc:'En attente de validation par l’hôte',emoji:'📨',color:COLOR.base},
+  [STATUS.OPEN]:{label:'FILE OUVERTE',desc:'Les joueurs peuvent s’inscrire',emoji:'🟢',color:COLOR.open},
+  [STATUS.READY]:{label:'FILE FERMÉE',desc:'En attente du lancement Fortnite',emoji:'⏳',color:COLOR.ready},
+  [STATUS.RUNNING]:{label:'PARTIE LANCÉE',desc:'Lancement confirmé manuellement par l’hôte',emoji:'✅',color:COLOR.live},
+  [STATUS.COMPLETED]:{label:'PARTIE TERMINÉE',desc:'Session clôturée',emoji:'🏁',color:COLOR.done},
+  [STATUS.CANCELLED]:{label:'ANNULÉE',desc:'Demande annulée',emoji:'❌',color:COLOR.error}
 };
-
-function icon(config, key, fallback) {
-  const configured = config?.emojis?.[key];
-  return configured && CUSTOM_EMOJI.test(configured) ? configured : fallback;
+function icon(config,key,fallback) {
+  const value=config?.emojis?.[key];
+  return value&&EMOJI_RE.test(value)?value:fallback;
 }
-
-function baseEmbed(config, color = config?.accentColor ?? COLORS.info) {
-  return new EmbedBuilder()
-    .setColor(color)
-    .setAuthor({ name: `${icon(config, 'brand', '✦')}  PP FORTNITE`, iconURL: config?.brandIconUrl || undefined })
-    .setFooter({ text: 'PP Fortnite  ·  Match Center' });
+function embed(config,color=COLOR.base) {
+  return new EmbedBuilder().setColor(color).setAuthor({name:'✦  PP FORTNITE   •   MATCH CENTER'})
+    .setFooter({text:'PP Fortnite  •  Match Center  •  Gestion Discord'});
 }
-
-function componentEmoji(config, key, fallback) {
-  return icon(config, key, fallback);
+export function withBanner(messageEmbed,config) {
+  if(config?.bannerUrl) {
+    messageEmbed.setImage(config.bannerUrl);
+    return {embeds:[messageEmbed],allowedMentions:{parse:[]}};
+  }
+  messageEmbed.setImage('attachment://pp-banner.png');
+  return {
+    embeds:[messageEmbed],attachments:[],
+    files:[new AttachmentBuilder(BANNER_PNG,{name:'pp-banner.png',description:'Bannière PP Fortnite ultra-fine'})],
+    allowedMentions:{parse:[]}
+  };
 }
-
-export function sessionView(session, config) {
-  const category = CATEGORIES[session.category];
-  const status = STATUS_VIEW[session.status] || { key: 'session', fallback: '⚪', label: String(session.status).toUpperCase(), detail: session.status, color: config.accentColor };
-  const terminal = TERMINAL_STATUSES.has(session.status);
-  const statusIcon = icon(config, status.key, status.fallback);
-  const embed = baseEmbed(config, status.color)
-    .setTitle(`${category.emoji}  ${category.label}  ·  ${session.mode}`)
-    .setDescription(`${statusIcon} **${status.label}**  ·  ${status.detail}\n\n**PARTIE PERSONNALISÉE**`)
+function queueLabel(session) {
+  if(session.status===STATUS.OPEN&&session.queueEndsAt)
+    return `**<t:${Math.floor(session.queueEndsAt/1000)}:R>** · fin <t:${Math.floor(session.queueEndsAt/1000)}:t>`;
+  if(session.status===STATUS.REQUESTED)return `**${session.durationMinutes||2} min** après ouverture par l’hôte`;
+  if(session.status===STATUS.OPEN)return 'Ouverte par l’hôte';
+  return 'Fermée';
+}
+export function sessionView(session,config={}) {
+  const category=CATEGORIES[session.category]||{label:session.category,emoji:'🎮'};
+  const state=STATES[session.status]||STATES[STATUS.REQUESTED];
+  const closed=TERMINAL_STATUSES.has(session.status);
+  const host=session.hostId||session.ownerId;
+  const codeLabel=!session.code?'⏳ **En attente de l’hôte**':session.privateCode?'🔒 **Privé** · réservé aux gestionnaires':`🔑 ${session.code}`;
+  const card=embed(config,state.color)
+    .setTitle(`${state.emoji}  ${state.label}`)
+    .setDescription(`**${state.desc}**\n\n> Demandée par <@${session.ownerId}>\n\n**${category.emoji}  ${category.label}  ·  ${session.mode}**`)
     .addFields(
-      { name: `${icon(config, 'region', '🌐')}  RÉGION`, value: `**${session.region}**`, inline: true },
-      { name: `${icon(config, 'host', '♛')}  HÔTE`, value: `<@${session.ownerId}>`, inline: true },
-      { name: `${icon(config, 'players', '◈')}  JOUEURS`, value: `**${session.players.length} / ${config.maxPlayers}**`, inline: true },
-      { name: `${icon(config, 'code', '🔑')}  CODE DE MATCHMAKING`, value: session.privateCode ? '🔒 **Privé** · Visible uniquement par l’hôte et les gestionnaires via le menu ci-dessous' : `\`${session.code}\`  ·  À configurer dans Fortnite par l’hôte`, inline: false },
-      { name: `${icon(config, 'session', '⌁')}  SESSION`, value: `\`${session.id}\``, inline: true },
-      { name: 'MISE À JOUR', value: `<t:${Math.floor(session.updatedAt / 1000)}:R>`, inline: true })
+      {name:'👑  HÔTE FORTNITE',value:`<@${host}>`,inline:true},
+      {name:'🌍  RÉGION',value:session.region||'Europe',inline:true},
+      {name:'👥  INSCRITS',value:`${session.players?.length||0} / ${config.maxPlayers||100}`,inline:true},
+      {name:'⏱️  FILE D’ATTENTE',value:queueLabel(session),inline:true},
+      {name:'🔑  CODE',value:codeLabel,inline:true},
+      {name:'🆔  PARTIE',value:`${session.id}`,inline:true},
+    )
     .setTimestamp(session.updatedAt);
-  // Utiliser une image horizontale très fine (par exemple 1200 × 100) dans PP_BANNER_URL.
-  if (config.bannerUrl && /^https:\/\//i.test(config.bannerUrl)) embed.setImage(config.bannerUrl);
-  const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`pp:join:${session.id}`).setLabel('Participer / quitter').setEmoji(componentEmoji(config, 'join', '🎮')).setStyle(ButtonStyle.Primary).setDisabled(terminal || session.status !== STATUS.OPEN),
-    new ButtonBuilder().setCustomId(`pp:roster:${session.id}`).setLabel('Participants').setEmoji(componentEmoji(config, 'players', '👥')).setStyle(ButtonStyle.Secondary));
-  const menu = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`pp:manage:${session.id}`).setPlaceholder('⚙️  Gestion de la PP').setMinValues(1).setMaxValues(1).addOptions(
-    { label: 'Ouvrir les inscriptions', description: 'Autoriser les joueurs à rejoindre', value: STATUS.OPEN, emoji: componentEmoji(config, 'open', '🟢') },
-    { label: 'Fermer les inscriptions', description: 'Verrouiller la liste des participants', value: STATUS.READY, emoji: componentEmoji(config, 'ready', '🟠') },
-    { label: 'Marquer en cours', description: 'Indiquer un lancement manuel', value: STATUS.RUNNING, emoji: componentEmoji(config, 'running', '🔵') },
-    { label: 'Terminer la session', description: 'Clôturer cette partie personnalisée', value: STATUS.COMPLETED, emoji: componentEmoji(config, 'completed', '🏁') },
-    { label: 'Afficher le code privé', description: 'Visible uniquement par toi, accès réservé aux gestionnaires', value: 'reveal_code', emoji: componentEmoji(config, 'code', '🔑') },
-    { label: 'Publier une annonce', description: 'Relancer la session dans ce salon', value: 'announce', emoji: componentEmoji(config, 'announce', '📣') },
-    { label: 'Annuler la session', description: 'Fermer et signaler l’annulation', value: STATUS.CANCELLED, emoji: componentEmoji(config, 'cancel', '✖️') }));
-  return { embeds: [embed], components: [buttons, menu], allowedMentions: { parse: [], users: [session.ownerId] } };
+  const buttons=new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`pp:join:${session.id}`).setLabel('Participer / quitter').setStyle(ButtonStyle.Primary).setEmoji(icon(config,'join','🎮')).setDisabled(session.status!==STATUS.OPEN),
+    new ButtonBuilder().setCustomId(`pp:roster:${session.id}`).setLabel('Participants').setStyle(ButtonStyle.Secondary).setEmoji(icon(config,'players','👥'))
+  );
+  const manager=new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+    .setCustomId(`pp:manage:${session.id}`).setPlaceholder('⚙️  Gestion de la PP').setDisabled(closed)
+    .addOptions(
+      {label:'Ouvrir la file',description:'Démarrer le délai et autoriser les participants',value:'queue_open',emoji:'🟢'},
+      {label:'Fermer la file',description:'Stopper les inscriptions',value:'queue_close',emoji:'⏳'},
+      {label:'Confirmer : partie lancée',description:'L’hôte a démarré la PP dans Fortnite',value:'launch',emoji:'✅'},
+      {label:'Terminer la partie',description:'Clôturer la session',value:'complete',emoji:'🏁'},
+      {label:'Voir le code privé',description:'Réponse visible uniquement par toi',value:'reveal_code',emoji:'🔑'},
+      {label:'Définir / modifier le code',description:'Réservé à l’hôte Fortnite',value:'set_code',emoji:'✏️'},
+      {label:'Publier une annonce',description:'Rappel dans ce salon',value:'announce',emoji:'📣'},
+      {label:'Annuler cette PP',description:'Fermer la demande',value:'cancel',emoji:'❌'}
+    ));
+  return {...withBanner(card,config),components:[buttons,manager]};
 }
-export function listView(sessions, config = {}) {
-  const lines = sessions.slice(0, 25).map((session) => {
-    const status = STATUS_VIEW[session.status] || { key: 'session', fallback: '⚪', label: session.status };
-    return `${icon(config, status.key, status.fallback)}  **${CATEGORIES[session.category]?.label || session.category} • ${session.mode}**\n↳ \`${session.id}\`  ·  ${session.region}  ·  ${session.players.length} joueur(s)  ·  ${status.label}`;
-  });
-  return baseEmbed(config).setTitle('Sessions actives').setDescription(lines.join('\n\n') || '> Aucune session active pour le moment.').addFields({ name: 'OUVRIR UN PANNEAU', value: 'Utilise `/pp voir` avec l’identifiant de la session.' });
-}
-
-export function rosterView(session, config) {
-  const roster = session.players.length
-    ? session.players.slice(0, 100).map((id, index) => `\`${String(index + 1).padStart(2, '0')}\`  <@${id}>`).join('\n')
-    : '> Aucun joueur inscrit pour le moment.';
-  return baseEmbed(config).setTitle(`${icon(config, 'players', '👥')}  Participants • ${session.id}`).setDescription(roster)
-    .addFields({ name: 'CAPACITÉ', value: `**${session.players.length} / ${config.maxPlayers}** joueurs`, inline: true }, { name: 'STATUT', value: STATUS_VIEW[session.status]?.label || session.status, inline: true });
-}
-
-export function codeView(session, manager, config) {
-  const code = !session.privateCode || manager ? session.code : null;
-  return baseEmbed(config, code ? config.accentColor : COLORS.warning).setTitle(`${icon(config, 'code', '🔑')}  Accès à la session`)
-    .setDescription(code ? `## \`${code}\`\n🔒 **Message privé : visible uniquement par toi.**\n\nCopie ce code et configure-le dans Fortnite avant de lancer la PP.` : '> Ce code est privé. Demande-le directement à l’hôte.')
-    .addFields({ name: 'IMPORTANT', value: 'Ce code ne crée pas de partie Epic Games. Un créateur autorisé doit configurer la partie manuellement dans Fortnite.' });
-}
-
-export function launchHelpView(session, config) {
-  return baseEmbed(config, COLORS.warning).setTitle(`${icon(config, 'launch', '▶️')}  Lancement manuel requis`)
-    .setDescription('### Aucune connexion Epic Games n’est active\nCe panneau Discord ne peut ni créer un code Epic, ni ouvrir un lobby, ni lancer une partie Fortnite.')
+export function announcementView(session,config={},kind='reminder') {
+  const category=CATEGORIES[session.category]||{label:session.category,emoji:'🎮'};
+  const titles={queue:'🟢  File d’attente ouverte !',closed:'⏳  File d’attente terminée',launch:'✅  Partie lancée !',complete:'🏁  Partie terminée',cancel:'❌  PP annulée',reminder:'📣  PP Fortnite disponible'};
+  const descriptions={queue:'La file est ouverte. Rejoins la PP depuis le panneau ci-dessus.',closed:'Le délai est écoulé. L’hôte peut maintenant lancer la partie.',launch:'Bon jeu à tous ! 🎉\nL’hôte a confirmé le lancement dans Fortnite.',complete:'Merci à tous pour votre participation.',cancel:'Cette partie personnalisée a été annulée.',reminder:'Une partie personnalisée est en préparation. Consulte le panneau de la session.'};
+  return embed(config,kind==='launch'?COLOR.open:COLOR.base)
+    .setTitle(titles[kind]||titles.reminder)
+    .setDescription(`${descriptions[kind]||descriptions.reminder}\n\n**${category.emoji}  ${category.label}  ·  ${session.mode}**`)
     .addFields(
-      { name: '1  •  CONFIGURER', value: 'L’hôte crée la partie dans Fortnite avec un compte créateur autorisé.' },
-      { name: '2  •  COMMUNIQUER', value: 'L’hôte transmet les informations d’accès aux participants.' },
-      { name: '3  •  METTRE À JOUR', value: `L’hôte marque ensuite la session \`${session.id}\` « en cours » depuis le menu Discord.` });
+      {name:'👑  HÔTE',value:`<@${session.hostId||session.ownerId}>`,inline:true},
+      {name:'⏱️  FILE',value:`${session.durationMinutes||2} minute(s)`,inline:true},
+      {name:'🆔  PP',value:session.id,inline:true}
+    ).setTimestamp();
 }
-
-export function announcementView(session, config) {
-  const category = CATEGORIES[session.category];
-  return baseEmbed(config, COLORS.info).setTitle(`${icon(config, 'announce', '📣')}  Une PP est disponible`)
-    .setDescription(`### ${category.emoji}  ${category.label} • ${session.mode}\nUne nouvelle session attend ses joueurs. Rejoins-la depuis son panneau officiel.`)
-    .addFields({ name: 'RÉGION', value: session.region, inline: true }, { name: 'PLACES', value: `${session.players.length} / ${config.maxPlayers}`, inline: true }, { name: 'SESSION', value: `\`${session.id}\``, inline: true });
+export function listView(sessions,config={}) {
+  const lines=sessions.slice(0,25).map(s=>{
+    const c=CATEGORIES[s.category]||{emoji:'🎮',label:s.category};
+    const state=STATES[s.status]||STATES[STATUS.REQUESTED];
+    return `${state.emoji}  **${c.label} · ${s.mode}**\n↳ ${s.id}  •  <@${s.hostId||s.ownerId}>  •  ${state.label}`;
+  });
+  return embed(config).setTitle('🎮  Parties personnalisées').setDescription(lines.join('\n\n')||'Aucune PP active.').setFooter({text:'Utilise /pp voir pour ouvrir un panneau'});
 }
-
-export function feedbackView(title, description, config, tone = 'success') {
-  return baseEmbed(config, COLORS[tone] || COLORS.info).setTitle(title).setDescription(description);
+export function rosterView(session,config={}) {
+  const players=session.players||[];
+  return embed(config).setTitle(`👥  Participants · ${session.id}`)
+    .setDescription(players.length?players.slice(0,100).map((id,i)=>`${String(i+1).padStart(2,'0')}  <@${id}>`).join('\n'):'Aucun participant pour le moment.')
+    .addFields({name:'INSCRITS',value:`${players.length} / ${config.maxPlayers||100}`});
+}
+export function codeView(session,manager,config={}) {
+  const code=manager?session.code:(!session.privateCode?session.code:null);
+  return embed(config).setTitle('🔐  Code de matchmaking')
+    .setDescription(code?`**${code}**\n\nVisible uniquement par toi dans ce message privé. Ce code doit être configuré dans Fortnite par l’hôte.`:'🔒 Code privé ou non défini. Demande-le à l’hôte.')
+    .setFooter({text:'Le bot ne peut pas lancer Fortnite automatiquement'});
+}
+export function launchHelpView(session,config={}) {
+  return embed(config).setTitle('🎮  Lancement manuel')
+    .setDescription(`L’hôte <@${session.hostId||session.ownerId}> configure la PP dans Fortnite, puis confirme le lancement dans le menu Discord.`);
+}
+export function feedbackView(title,description,config={},tone='success') {
+  return embed(config,tone==='danger'?COLOR.error:tone==='success'?COLOR.open:COLOR.base).setTitle(title).setDescription(description);
 }
