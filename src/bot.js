@@ -4,7 +4,7 @@ import { getConfig, STATUS, TERMINAL_STATUSES } from './config.js';
 import { buildCommand } from './commands.js';
 import { createSession, DomainError, normalizeId, togglePlayer, transitionSession } from './domain.js';
 import { JsonStore } from './store.js';
-import { announcementView, feedbackView, listView, rosterView, sessionView } from './ui.js';
+import { announcementView, codeView, feedbackView, listView, rosterView, sessionView } from './ui.js';
 
 const EPHEMERAL = MessageFlags.Ephemeral;
 const safeReply = (i, payload) => i.replied || i.deferred ? i.followUp(payload) : i.reply(payload);
@@ -69,6 +69,9 @@ async function handleMenu(i, store, config) {
   const session = getSession(i, store, rawId);
   if (!canManage(i, session, config)) throw new DomainError('FORBIDDEN', 'Cette action est réservée à l’hôte ou aux gestionnaires.');
   const selected = i.values[0];
+  if (selected === 'reveal_code') {
+    await i.reply({ embeds: [codeView(session, true, config)], flags: EPHEMERAL, allowedMentions: { parse: [] } }); return;
+  }
   if (selected === 'announce') {
     const now = Date.now(); const remaining = config.announceCooldownMs - (now - (session.lastAnnouncementAt || 0));
     if (remaining > 0) throw new DomainError('COOLDOWN', `Attends encore ${Math.ceil(remaining / 1000)} seconde(s) avant une nouvelle annonce.`);
