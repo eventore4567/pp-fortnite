@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { Client, Events, GatewayIntentBits, MessageFlags, PermissionFlagsBits, REST, Routes } from 'discord.js';
-import { getConfig, STATUS, TERMINAL_STATUSES } from './config.js';
+import { CATEGORIES, getConfig, STATUS, TERMINAL_STATUSES } from './config.js';
 import { buildCommand } from './commands.js';
 import { createSession, DomainError, normalizeId, togglePlayer, transitionSession } from './domain.js';
 import { JsonStore } from './store.js';
@@ -92,6 +92,12 @@ export async function startBot() {
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
   client.on('interactionCreate', async (i) => {
     try {
+      if (i.isAutocomplete() && i.commandName === 'pp') {
+        const category = i.options.getString('categorie');
+        const typed = String(i.options.getFocused() || '').toLowerCase();
+        const modes = CATEGORIES[category]?.modes || [];
+        await i.respond(modes.filter((mode) => mode.toLowerCase().includes(typed)).map((mode) => ({ name: mode, value: mode }))); return;
+      }
       if (i.isChatInputCommand() && i.commandName === 'pp') await handleCommand(i, store, config);
       else if (i.isButton() && i.customId.startsWith('pp:')) await handleButton(i, store, config);
       else if (i.isStringSelectMenu() && i.customId.startsWith('pp:')) await handleMenu(i, store, config);
