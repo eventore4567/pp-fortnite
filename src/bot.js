@@ -1,9 +1,10 @@
 import 'dotenv/config';
-import { ActionRowBuilder, Client, Events, GatewayIntentBits, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, REST, Routes, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, Events, GatewayIntentBits, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, REST, Routes, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { getConfig, MODE_OPTIONS, STATUS, TERMINAL_STATUSES } from './config.js';
 import { buildCommand } from './commands.js';
 import { createSession, DomainError, normalizeCode, normalizeId, openQueue, parseMode, togglePlayer, transitionSession, validateDelay } from './domain.js';
 import { JsonStore } from './store.js';
+import { createEpicAuthorizationUrl } from './epic-auth.js';
 import { announcementPanelView, announcementView, codeView, feedbackView, listView, panelView, rosterView, sessionView, withBanner } from './ui.js';
 
 const EPHEMERAL=MessageFlags.Ephemeral;
@@ -125,6 +126,20 @@ async function menu(i,store,config) {
   const [,action,id]=i.customId.split(':');
   if(action!=='manage')throw new DomainError('BAD_ACTION','Menu inconnu.');
   const session=getSession(i,store,id), selected=i.values[0];
+  if(selected==='connect_epic') {
+    if (!config.creatorDiscordId || i.user.id !== config.creatorDiscordId)
+      throw new DomainError('FORBIDDEN','Seul Minimoys peut relier son compte Epic Games.');
+    let authUrl;
+    try { authUrl=createEpicAuthorizationUrl(i.user.id); }
+    catch(error) { throw new DomainError('EPIC_NOT_CONFIGURED',error.message); }
+    const row=new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(authUrl).setLabel('Autoriser sur Epic Games').setEmoji('🔗')
+    );
+    await i.reply({embeds:[feedbackView('🔗 Connexion Epic Games',
+      'Lien privé valable 10 minutes et utilisable une seule fois. Epic demandera ton accord pour accéder au profil de base. Cette connexion ne permettra pas au bot de lancer Fortnite automatiquement.',config,'info')],
+      components:[row],flags:EPHEMERAL,allowedMentions:{parse:[]}});
+    return;
+  }
   if(selected==='reveal_code') {
     if(!canCancel(i,session,config))throw new DomainError('FORBIDDEN','Code réservé au demandeur et aux gestionnaires.');
     await i.reply({embeds:[codeView(session,true,config)],flags:EPHEMERAL,allowedMentions:{parse:[]}});return;
