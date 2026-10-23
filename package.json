@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --test",
+    "check": "node --check index.js && node --check src/bot.js"
   },
   "engines": {
     "node": ">=20"
@@ -12,5 +14,6 @@
   "dependencies": {
     "discord.js": "^14.22.1",
     "dotenv": "^16.6.1"
-  }
+  },
+  "devDependencies": {}
 }

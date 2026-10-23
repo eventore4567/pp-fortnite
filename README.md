@@ -1,28 +1,74 @@
-# PP Fortnite — Discord bot
+# PP Fortnite — bot Discord
 
-Bot autonome de gestion de parties personnalisées Fortnite, au style premium inspiré de SentriX, sans dépendance à SentriX.
+Bot autonome de gestion de parties personnalisées Fortnite. Son interface premium reprend une esthétique sombre, nette et structurée inspirée de SentriX, mais le projet ne dépend pas de SentriX et ne le modifie pas.
 
-## Installation
+## Ce que le bot gère
 
-1. Crée une application Discord et un bot sur le Developer Portal.
-2. Invite-le avec les scopes `bot` et `applications.commands`, et les permissions d'envoyer des messages et d'utiliser des commandes.
-3. Installe Node.js 20+, puis `npm install`.
-4. Copie `.env.example` vers `.env`, remplis `DISCORD_TOKEN` et `DISCORD_CLIENT_ID`.
-5. Lance `npm start`. Les slash commands sont enregistrées globalement (la propagation peut prendre du temps).
+- Catégories Battle Royale, Fortnite OG, Recharge et Blitz, avec validation des modes compatibles.
+- Création, liste, consultation, annulation, inscriptions, participants et annonces.
+- États `ouverte`, `prete`, `en_cours`, `terminee` et `annulee`.
+- Codes publics ou privés, avec accès privé limité à l’hôte et aux gestionnaires.
+- Permissions de gestion pour l’hôte, `Gérer le serveur` et `Gérer les évènements`.
+- Stockage JSON persistant, écrit de manière atomique pour limiter les corruptions.
+- Limite de joueurs, délai anti-spam pour les annonces et mentions neutralisées.
 
-## Commandes
+## Les quatre seules sous-commandes
 
-- `/pp creer` : catégorie, mode, région, code optionnel, confidentialité.
-- `/pp liste` : sessions actives.
-- `/pp voir` : afficher une session.
-- `/pp annuler` : annuler une session.
+- `/pp creer` — crée le panneau interactif.
+- `/pp liste` — liste les sessions actives.
+- `/pp voir` — affiche une session à partir de son identifiant.
+- `/pp annuler` — annule une session avec contrôle des permissions.
 
-Boutons : rejoindre/quitter, préparer, lancer manuellement (instruction uniquement), annuler. Seul l'hôte ou un membre avec Manage Server peut gérer la session. Les données sont sauvegardées dans `sessions.json` : prévoir un volume persistant en hébergement.
+Toutes les autres fonctions passent par les boutons et le menu déroulant du panneau : rejoindre/quitter, participants, affichage du code, instructions de lancement, ouverture/fermeture des inscriptions, état en cours/terminé, annonce et annulation.
 
-## Important : intégration Fortnite
+## Limite Fortnite/Epic explicite
 
-Le bot **ne se connecte pas à Epic Games**, ne crée pas de code de matchmaking reconnu par Fortnite, ne détecte pas le lobby et ne lance pas réellement les parties. Les codes sont des références préparatoires à utiliser uniquement si un hôte autorisé les configure lui-même dans Fortnite. Ne communique jamais de mot de passe Epic au bot. L'intégration officielle et ses permissions devront être étudiées séparément.
+Ce bot **ne se connecte pas à Epic Games**. Il ne crée pas de code de matchmaking Epic valide, ne détecte pas un lobby et ne lance pas une partie réelle. Un code enregistré ici est une **référence préparatoire** : un créateur autorisé doit configurer et lancer la partie manuellement dans Fortnite. Ne transmettez jamais d’identifiants, de mot de passe ou de code 2FA Epic au bot.
 
-## Hébergement Railway
+## Installation locale
 
-Service Node.js depuis ce dépôt, commande de démarrage `npm start`, variables `DISCORD_TOKEN` et `DISCORD_CLIENT_ID`. Monte un volume persistant pour la sauvegarde, ou remplace la sauvegarde JSON par PostgreSQL avant une utilisation à grande échelle.
+Prérequis : Node.js 20 ou plus récent.
+
+```bash
+npm install
+cp .env.example .env
+npm test
+npm start
+```
+
+Variables obligatoires :
+
+- `DISCORD_TOKEN` : jeton du bot Discord.
+- `DISCORD_CLIENT_ID` : identifiant de l’application Discord.
+
+Variables facultatives :
+
+- `DISCORD_GUILD_ID` : enregistre la commande immédiatement dans un serveur de test. Sans cette variable, la commande est globale et sa propagation peut prendre du temps.
+- `DATA_FILE` : chemin du fichier persistant, par défaut `./data/sessions.json`.
+- `PP_BANNER_URL` : URL HTTPS publique d’une bannière personnalisée.
+- `PP_ACCENT_COLOR` : couleur décimale des embeds.
+- `PP_MAX_PLAYERS` : limite entre 2 et 100.
+- `PP_ANNOUNCE_COOLDOWN_SECONDS` : délai entre annonces, entre 10 et 3600 secondes.
+
+Invitez l’application avec les scopes `bot` et `applications.commands`. Le bot a besoin de voir le salon, envoyer des messages, intégrer des liens et utiliser des commandes d’application.
+
+## Déploiement Railway
+
+Le fichier `railway.json` configure la construction, `npm start` et le redémarrage sur échec.
+
+1. Créez un service Railway depuis ce dépôt.
+2. Ajoutez `DISCORD_TOKEN` et `DISCORD_CLIENT_ID` dans les variables du service. Pour tester les commandes sans délai, ajoutez temporairement `DISCORD_GUILD_ID`.
+3. Créez un volume persistant monté sur `/data`.
+4. Définissez `DATA_FILE=/data/sessions.json`.
+5. Déployez puis vérifiez dans les journaux une ligne commençant par `[ready]`.
+
+Sans volume, les sessions peuvent disparaître lors d’un redéploiement. Pour une charge importante ou plusieurs instances, remplacez le stockage JSON par une base transactionnelle avant de mettre à l’échelle.
+
+## Vérification
+
+```bash
+npm test
+npm run check
+```
+
+Les tests couvrent le catalogue strict des sous-commandes, la matrice catégorie/mode, les codes, les inscriptions, les limites, les transitions d’état, la confidentialité et la persistance. Un test Discord réel nécessite un jeton et un serveur de test ; il n’est pas simulé par la suite locale.
