@@ -46,8 +46,7 @@ export function sessionView(session, config) {
   if (config.bannerUrl) embed.setImage(config.bannerUrl);
   const buttons = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`pp:join:${session.id}`).setLabel('Rejoindre / quitter').setEmoji(componentEmoji(config, 'join', '🎮')).setStyle(ButtonStyle.Primary).setDisabled(terminal || session.status !== STATUS.OPEN),
-    new ButtonBuilder().setCustomId(`pp:roster:${session.id}`).setLabel('Participants').setEmoji(componentEmoji(config, 'players', '👥')).setStyle(ButtonStyle.Secondary)
-    new ButtonBuilder().setCustomId(`pp:launch:${session.id}`).setLabel('Instructions').setEmoji(componentEmoji(config, 'launch', '▶️')).setStyle(ButtonStyle.Success).setDisabled(terminal));
+    new ButtonBuilder().setCustomId(`pp:roster:${session.id}`).setLabel('Participants').setEmoji(componentEmoji(config, 'players', '👥')).setStyle(ButtonStyle.Secondary));
   const menu = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`pp:manage:${session.id}`).setPlaceholder('Gérer la session').setMinValues(1).setMaxValues(1).addOptions(
     { label: 'Ouvrir les inscriptions', description: 'Autoriser les joueurs à rejoindre', value: STATUS.OPEN, emoji: componentEmoji(config, 'open', '🟢') },
     { label: 'Fermer les inscriptions', description: 'Verrouiller la liste des participants', value: STATUS.READY, emoji: componentEmoji(config, 'ready', '🟠') },
