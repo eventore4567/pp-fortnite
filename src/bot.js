@@ -4,11 +4,11 @@ import { getConfig, STATUS, TERMINAL_STATUSES } from './config.js';
 import { buildCommand } from './commands.js';
 import { createSession, DomainError, normalizeId, togglePlayer, transitionSession } from './domain.js';
 import { JsonStore } from './store.js';
-import { announcementView, codeView, feedbackView, launchHelpView, listView, rosterView, sessionView } from './ui.js';
+import { announcementView, feedbackView, listView, rosterView, sessionView } from './ui.js';
 
 const EPHEMERAL = MessageFlags.Ephemeral;
 const safeReply = (i, payload) => i.replied || i.deferred ? i.followUp(payload) : i.reply(payload);
-const canManage = (i, s) => i.user.id === s.ownerId || i.memberPermissions?.has(PermissionFlagsBits.ManageGuild) || i.memberPermissions?.has(PermissionFlagsBits.ManageEvents);
+const canManage = (i, s, config) => (config.creatorDiscordId !== null && i.user.id === config.creatorDiscordId) || i.user.id === s.ownerId || i.memberPermissions?.has(PermissionFlagsBits.ManageGuild) || i.memberPermissions?.has(PermissionFlagsBits.ManageEvents);
 function requireGuild(i) { if (!i.inGuild()) throw new DomainError('GUILD_ONLY', 'Cette action est disponible uniquement dans un serveur.'); }
 function getSession(i, store, rawId) {
   const session = store.get(normalizeId(rawId));
@@ -46,7 +46,7 @@ async function handleCommand(i, store, config) {
   }
   const session = getSession(i, store, i.options.getString('id', true));
   if (sub === 'voir') { await i.reply({ ...sessionView(session, config), flags: EPHEMERAL }); return; }
-  if (!canManage(i, session)) throw new DomainError('FORBIDDEN', 'Seul l’hôte ou un membre autorisé peut annuler cette session.');
+  if (!canManage(i, session, config)) throw new DomainError('FORBIDDEN', 'Seul l’hôte ou un membre autorisé peut annuler cette session.');
   transitionSession(session, STATUS.CANCELLED); await store.set(session);
   await refreshSessionMessage(i.client, session, config);
   await i.reply({ embeds: [feedbackView('Session annulée', `La session \`${session.id}\` est désormais fermée.`, config, 'danger')], flags: EPHEMERAL });
@@ -56,13 +56,6 @@ async function handleButton(i, store, config) {
   requireGuild(i); const [, action, rawId] = i.customId.split(':'); const session = getSession(i, store, rawId);
   if (action === 'roster') {
     await i.reply({ embeds: [rosterView(session, config)], flags: EPHEMERAL, allowedMentions: { parse: [] } }); return;
-  }
-  if (action === 'code') {
-    await i.reply({ embeds: [codeView(session, canManage(i, session), config)], flags: EPHEMERAL }); return;
-  }
-  if (action === 'launch') {
-    if (!canManage(i, session)) throw new DomainError('FORBIDDEN', 'Cette action est réservée à l’hôte ou aux gestionnaires.');
-    await i.reply({ embeds: [launchHelpView(session, config)], flags: EPHEMERAL }); return;
   }
   if (action !== 'join') throw new DomainError('BAD_ACTION', 'Action inconnue.');
   const joined = togglePlayer(session, i.user.id, config.maxPlayers); await store.set(session);
@@ -74,7 +67,7 @@ async function handleMenu(i, store, config) {
   requireGuild(i); const [, action, rawId] = i.customId.split(':');
   if (action !== 'manage') throw new DomainError('BAD_ACTION', 'Action inconnue.');
   const session = getSession(i, store, rawId);
-  if (!canManage(i, session)) throw new DomainError('FORBIDDEN', 'Cette action est réservée à l’hôte ou aux gestionnaires.');
+  if (!canManage(i, session, config)) throw new DomainError('FORBIDDEN', 'Cette action est réservée à l’hôte ou aux gestionnaires.');
   const selected = i.values[0];
   if (selected === 'announce') {
     const now = Date.now(); const remaining = config.announceCooldownMs - (now - (session.lastAnnouncementAt || 0));
