@@ -21,11 +21,21 @@ Bot autonome de gestion de parties personnalisées Fortnite. Son interface premi
 - `/pp voir` — affiche une session à partir de son identifiant.
 - `/pp annuler` — annule une session avec contrôle des permissions.
 
-Toutes les autres fonctions passent par les boutons et le menu déroulant du panneau : rejoindre/quitter, participants, affichage du code, instructions de lancement, ouverture/fermeture des inscriptions, état en cours/terminé, annonce et annulation.
+Toutes les autres fonctions passent par les boutons et le menu déroulant : participation, participants, code privé, définition du code, ouverture/fermeture de file, lancement confirmé manuellement, annonces, annulation et connexion Epic du compte créateur.
 
-## Limite Fortnite/Epic explicite
+## Connexion Epic Games — identité uniquement
 
-Ce bot **ne se connecte pas à Epic Games**. Il ne crée pas de code de matchmaking Epic valide, ne détecte pas un lobby et ne lance pas une partie réelle. Un code enregistré ici est une **référence préparatoire** : un créateur autorisé doit configurer et lancer la partie manuellement dans Fortnite. Ne transmettez jamais d’identifiants, de mot de passe ou de code 2FA Epic au bot.
+Une connexion Epic Account Services (OAuth 2.0, permission `basic_profile`) est disponible depuis le menu de gestion des PP. **Seul le compte Discord configuré dans `PP_CREATOR_DISCORD_ID` peut initier cette connexion**. Le lien s'affiche de manière éphémère dans Discord, expire en 10 minutes et est protégé contre les retours OAuth non sollicités par un état aléatoire. Après confirmation par Epic, le bot enregistre uniquement l'identifiant Epic associé dans `EPIC_LINK_FILE` sur le volume Railway ; aucun access token ni refresh token n'est conservé.
+
+Domaine HTTPS gratuit de test : `https://pp-fortnite-production.up.railway.app`
+URL de retour à configurer **à l'identique** dans le client Epic : `https://pp-fortnite-production.up.railway.app/auth/epic/callback`
+
+Configuration sur Railway : `PP_PUBLIC_URL`, `PORT=3000`, `EPIC_CLIENT_ID`, `EPIC_CLIENT_SECRET`, et éventuellement `EPIC_DEPLOYMENT_ID`. **Le Client Secret doit rester une variable privée Railway, jamais un message Discord, un commit GitHub ou une capture.**
+
+Pour un produit Epic non vérifié, seuls les comptes membres de son organisation peuvent se connecter en test. Pour soumettre une marque à validation publique, Epic exige notamment un domaine dont l'organisation prouve la propriété ; le sous-domaine gratuit Railway ne remplace pas cette vérification.
+
+**Cette liaison est uniquement une vérification d'identité.** Elle ne crée pas de lobby, ne configure pas les modes Fortnite et ne lance pas la partie depuis Xbox. L'hôte doit toujours lancer le matchmaking dans Fortnite lui-même.
+
 
 ## Installation locale
 
@@ -75,3 +85,7 @@ npm run check
 ```
 
 Les tests couvrent le catalogue strict des sous-commandes, la matrice catégorie/mode, les codes, les inscriptions, les limites, les transitions d’état, la confidentialité et la persistance. Un test Discord réel nécessite un jeton et un serveur de test ; il n’est pas simulé par la suite locale.
+
+## Site web gratuit
+
+Le même processus Node.js expose un petit site sur `PORT` (port 3000 par défaut), les routes `/`, `/privacy`, `/healthz` et `/auth/epic/callback`. Configure un domaine Railway dont le port cible est **3000**. L'URL de redirection exacte doit correspondre à celle du client Epic OAuth.
